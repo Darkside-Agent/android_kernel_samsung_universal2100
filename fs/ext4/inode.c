@@ -1195,6 +1195,9 @@ static int ext4_block_write_begin(struct page *page, loff_t pos, unsigned len,
 	struct buffer_head *bh, *head, *wait[2];
 	int nr_wait = 0;
 	int i;
+#ifdef CONFIG_DDAR
+	bool dd_decrypt = false;
+#endif
 
 	BUG_ON(!PageLocked(page));
 	BUG_ON(from > PAGE_SIZE);
@@ -1248,6 +1251,9 @@ static int ext4_block_write_begin(struct page *page, loff_t pos, unsigned len,
 			ll_rw_block(REQ_OP_READ, 0, 1, &bh);
 			wait[nr_wait++] = bh;
 
+#ifdef CONFIG_DDAR
+			dd_decrypt = fscrypt_dd_encrypted_inode(inode);
+#endif
 		}
 	}
 	/*
@@ -1272,6 +1278,11 @@ static int ext4_block_write_begin(struct page *page, loff_t pos, unsigned len,
 			}
 		}
 	}
+
+#ifdef CONFIG_DDAR
+	if (dd_decrypt)
+		err = fscrypt_dd_decrypt_page(inode, page);
+#endif
 
 	return err;
 }
@@ -4188,6 +4199,10 @@ static int __ext4_block_zero_page_range(handle_t *handle,
 			BUG_ON(!fscrypt_has_encryption_key(inode));
 			WARN_ON_ONCE(fscrypt_decrypt_pagecache_blocks(
 					page, blocksize, bh_offset(bh)));
+#ifdef CONFIG_DDAR
+			if (fscrypt_dd_encrypted_inode(inode))
+				WARN_ON_ONCE(fscrypt_dd_decrypt_page(page->mapping->host, page));
+#endif
 		}
 	}
 	if (ext4_should_journal_data(inode)) {

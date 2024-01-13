@@ -244,7 +244,7 @@ struct request {
 	unsigned long deadline;
 
 	union {
-		call_single_data_t csd;
+		struct __call_single_data csd;
 		u64 fifo_time;
 	};
 
